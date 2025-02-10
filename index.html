@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel to SQL Converter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h2>Excel to SQL Converter</h2>
+    
+    <input type="file" id="fileInput" />
+
+    <h3>Table Name:</h3>
+    <input type="text" id="tableName" placeholder="Enter table name" />
+
+    <h3>Select SQL Format:</h3>
+    <select id="sqlFormat">
+        <option value="mysql">MySQL</option>
+        <option value="postgres">PostgreSQL</option>
+        <option value="mssql">MSSQL</option>
+    </select>
+
+    <h3>Column Mapping:</h3>
+    <div id="columnMapping"></div>
+
+    <button id="generateSQL">Generate SQL</button>
+
+    <h3>Generated SQL:</h3>
+    <pre id="sqlOutput"></pre>
+    <button class="copy-btn" id="copySQL">Copy to Clipboard</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
