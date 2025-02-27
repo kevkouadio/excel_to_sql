@@ -6,11 +6,39 @@ document.getElementById('copySQL').addEventListener('click', copyToClipboard);
 
 function handleFileUpload(event) {
     const file = event.target.files[0];
+    if (!file) return;
+
+    // Display the selected file name
+    const fileNameContainer = document.getElementById("selectedFileName");
+    fileNameContainer.textContent = file.name;
+
+    // Validate file type
+    const allowedExtensions = [".xlsx", ".xls", ".csv"];
+    const fileExtension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+
+    if (!allowedExtensions.includes(fileExtension)) {
+        showToast("Please upload a valid Excel (.xlsx, .xls) or CSV (.csv) file.", "error");
+        event.target.value = ""; // Clear the file input
+        fileNameContainer.textContent = ""; // Clear the file name display
+        return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = (e) => {
         const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        let workbook;
+
+        if (fileExtension === ".csv") {
+            // Handle CSV file
+            const csvData = e.target.result;
+            const sheet = XLSX.utils.csv_to_sheet(csvData);
+            workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
+        } else {
+            // Handle Excel file
+            workbook = XLSX.read(data, { type: 'array' });
+        }
 
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
@@ -18,17 +46,21 @@ function handleFileUpload(event) {
         excelData = XLSX.utils.sheet_to_json(sheet);
 
         if (excelData.length === 0) {
-            showToast("Excel file is empty.", "error");
+            showToast("The file is empty.", "error");
             return;
         }
     };
 
-    reader.readAsArrayBuffer(file);
+    if (fileExtension === ".csv") {
+        reader.readAsText(file); 
+    } else {
+        reader.readAsArrayBuffer(file); // Read Excel as binary
+    }
 }
 
 function generateSQL() {
     if (excelData.length === 0) {
-        showToast("Please upload an Excel file first.", "error");
+        showToast("Please upload an Excel or CSV file first.", "error");
         return;
     }
 
@@ -106,12 +138,10 @@ function showToast(message, type = "info") {
 
     toastContainer.appendChild(toast);
 
-    // Show the toast
     setTimeout(() => toast.classList.add("show"), 10);
 
-    // Hide the toast after 3 seconds
     setTimeout(() => {
         toast.classList.remove("show");
-        setTimeout(() => toast.remove(), 300); // Remove after fade-out
+        setTimeout(() => toast.remove(), 300); 
     }, 3000);
 }
