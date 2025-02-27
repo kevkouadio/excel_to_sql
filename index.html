@@ -9,28 +9,34 @@
 <body>
     <h2>Excel to SQL Converter</h2>
     
-    <input type="file" id="fileInput" />
+    <label for="fileInput" class="custom-file-upload">
+        <i class="fas fa-upload"></i> Upload Excel File
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" />
 
     <h3>Table Name:</h3>
     <input type="text" id="tableName" placeholder="Enter table name" />
 
     <h3>Select SQL Format:</h3>
     <select id="sqlFormat">
+        <option value="mssql">MSSQL</option>
         <option value="mysql">MySQL</option>
         <option value="postgres">PostgreSQL</option>
-        <option value="mssql">MSSQL</option>
     </select>
-
-    <h3>Column Mapping:</h3>
-    <div id="columnMapping"></div>
 
     <button id="generateSQL">Generate SQL</button>
 
     <h3>Generated SQL:</h3>
-    <pre id="sqlOutput"></pre>
-    <button class="copy-btn" id="copySQL">Copy to Clipboard</button>
+    <div id="sqlOutputContainer">
+        <button id="copySQL" class="copy-btn">
+            <i class="fa fa-copy"></i> Copy
+        </button>
+        <pre id="sqlOutput"></pre>
+    </div>
+    <div id="toast"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <script src="script.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet"> 
 </body>
 </html>
