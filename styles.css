@@ -8,8 +8,8 @@ body {
 }
 
 h2 {
-    font-size: 2.5rem;
-    margin-bottom: 20px;
+    font-size: 2.2rem;
+    margin: 0 0 20px 0;
     color: #007BFF;
 }
 
@@ -63,7 +63,7 @@ button:active {
 }
 
 #sqlOutputContainer {
-    display: none; /* Hidden by default */
+    display: none; 
     position: relative;
     max-width: 80%;
     margin: 20px auto;
@@ -71,6 +71,10 @@ button:active {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     padding: 20px;
+}
+
+#generateSQL-text-h3 {
+    display: none;
 }
 
 pre {
@@ -193,4 +197,10 @@ pre {
 
 .toast.info {
     background-color: #007BFF;
+}
+
+.excel-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 25%;
 }
