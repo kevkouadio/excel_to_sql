@@ -65,12 +65,8 @@ button:active {
 #sqlOutputContainer {
     display: none; 
     position: relative;
-    max-width: 80%;
-    margin: 20px auto;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    padding: 20px;
+    max-width: 100%;
+    margin: 10px auto;
 }
 
 #generateSQL-text-h3 {
@@ -133,12 +129,6 @@ pre {
     color: #555;
     font-style: italic;
 }
-
-/* #selectedFileName::before {
-    content: "Selected File: ";
-    font-weight: bold;
-    color: #007BFF;
-} */
 
 .custom-file-upload {
     display: inline-block;
@@ -203,4 +193,68 @@ pre {
     width: 60px;
     height: 60px;
     border-radius: 25%;
+}
+
+.hidden {
+    display: none;
+}
+
+.form-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    /* gap: 20px;
+    justify-items: center; */
+    align-items: center;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.full-width {
+    grid-column: span 3;
+    text-align: center;
+}
+
+.two-columns {
+    grid-column: span 2;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: center;
+}
+
+.scroll-button {
+    position: fixed;
+    right: 20px;
+    padding: 10px;
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.scroll-button:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.scroll-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#scrollUp {
+    bottom: 80px;
+}
+
+#scrollDown {
+    bottom: 20px;
 }

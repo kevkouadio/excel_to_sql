@@ -10,23 +10,47 @@
 <body>
     <img src="favicon.ico" alt="Excel" class="excel-icon">
     <h2>Excel to SQL Converter</h2>
-    <label for="fileInput" class="custom-file-upload">
-        <i class="fas fa-upload"></i> Upload Excel File
-    </label> 
-    <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" />
-    <div id="selectedFileName"></div>
+    <div class="form-container">
+        <div class="form-group full-width">
+            <label for="fileInput" class="custom-file-upload">
+                <i class="fas fa-upload"></i> Upload Excel File
+            </label> 
+            <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" />
+            <div id="selectedFileName"></div>
+        </div>
 
-    <h3>Table Name:</h3>
-    <input type="text" id="tableName" placeholder="Enter table name" />
+        <div class="form-group">
+            <h3>Table Name:</h3>
+            <input type="text" id="tableName" placeholder="Enter table name" />
+        </div>
 
-    <h3>Select SQL Format:</h3>
-    <select id="sqlFormat">
-        <option value="mssql">MSSQL</option>
-        <option value="mysql">MySQL</option>
-        <option value="postgres">PostgreSQL</option>
-    </select>
+        <div class="form-group">
+            <h3>Select Query Type:</h3>
+            <select id="queryType" onchange="toggleWhereClause()">
+                <option value="insert">INSERT</option>
+                <option value="update">UPDATE</option>
+            </select>
+        </div>
 
-    <button id="generateSQL">Generate SQL</button>
+        <div class="form-group">
+            <h3>Select SQL Format:</h3>
+            <select id="sqlFormat">
+                <option value="mssql">MSSQL</option>
+                <option value="mysql">MySQL</option>
+                <option value="postgres">PostgreSQL</option>
+            </select>
+        </div>
+
+        <div class="form-group full-width">
+            <div>
+                <h3 id="whereClauseLabel" class="hidden">Select WHERE Condition Column:</h3>
+                <select id="whereColumn" class="hidden"></select>
+            </div>
+            <div>
+                <button id="generateSQL">Generate SQL</button>
+            </div>
+        </div>
+    </div>
 
     <h3 id="generateSQL-text-h3">Generated SQL:</h3>
     <div id="sqlOutputContainer">
@@ -36,6 +60,9 @@
         <pre id="sqlOutput"></pre>
     </div>
     <div id="toast"></div>
+
+    <button id="scrollUp" class="scroll-button hidden"><i class="fas fa-arrow-up"></i></button>
+    <button id="scrollDown" class="scroll-button hidden"><i class="fas fa-arrow-down"></i></button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <script src="script.js"></script>

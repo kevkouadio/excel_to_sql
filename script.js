@@ -3,6 +3,10 @@ let excelData = [];
 document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 document.getElementById('generateSQL').addEventListener('click', generateSQL);
 document.getElementById('copySQL').addEventListener('click', copyToClipboard);
+document.getElementById('queryType').addEventListener('change', toggleWhereClause);
+document.getElementById('scrollUp').addEventListener('click', scrollToTop);
+document.getElementById('scrollDown').addEventListener('click', scrollToBottom);
+window.addEventListener('scroll', handleScroll);
 
 function handleFileUpload(event) {
     const file = event.target.files[0];
@@ -45,6 +49,8 @@ function handleFileUpload(event) {
             showToast("The file is empty.", "error");
             return;
         }
+
+        populateWhereColumnSelect(Object.keys(excelData[0]));
     };
 
     if (fileExtension === ".csv") {
@@ -52,6 +58,18 @@ function handleFileUpload(event) {
     } else {
         reader.readAsArrayBuffer(file); 
     }
+}
+
+function populateWhereColumnSelect(columns) {
+    const whereColumnSelect = document.getElementById("whereColumn");
+    whereColumnSelect.innerHTML = ""; // Clear existing options
+
+    columns.forEach(column => {
+        const option = document.createElement("option");
+        option.value = column;
+        option.textContent = column;
+        whereColumnSelect.appendChild(option);
+    });
 }
 
 function generateSQL() {
@@ -67,50 +85,89 @@ function generateSQL() {
     }
 
     const sqlFormat = document.getElementById("sqlFormat").value;
+    const queryType = document.getElementById("queryType").value;
+    const whereColumn = document.getElementById("whereColumn").value;
 
-    const sqlQuery = convertToSQL(excelData, tableName, sqlFormat);
+    const sqlQuery = convertToSQL(excelData, tableName, sqlFormat, queryType, whereColumn);
     document.getElementById("sqlOutput").textContent = sqlQuery;
     document.getElementById("sqlOutputContainer").style.display = "block";
     document.getElementById("generateSQL-text-h3").style.display = "block";
     showToast("SQL generated successfully!", "success");
 }
 
-function convertToSQL(jsonData, tableName, sqlFormat) {
+function convertToSQL(jsonData, tableName, sqlFormat, queryType, whereColumn) {
     if (!jsonData.length) return "";
 
-    let columnNames = Object.keys(jsonData[0]).join(", "); 
-    let postgresColumnNames = Object.keys(jsonData[0]).map(col => `"${col}"`).join(", "); 
-    let MySqlcolumnNames = Object.keys(jsonData[0]).map(col => `\`${col}\``).join(", "); 
-
+    let columnNames = Object.keys(jsonData[0]).join(", ");
+    let postgresColumnNames = Object.keys(jsonData[0]).map(col => `"${col}"`).join(", ");
+    let MySqlcolumnNames = Object.keys(jsonData[0]).map(col => `\`${col}\``).join(", ");
     let sqlQuery = "";
 
     jsonData.forEach(row => {
         let values = Object.values(row).map(value => {
             if (value === undefined || value === null || value === "") {
-                return "NULL"; 
+                return "NULL";
             }
 
             if (typeof value === "string") {
                 if (isDate(value)) {
-                    value = formatDate(value); 
+                    value = formatDate(value);
                 } else if (looksLikeDate(value)) {
-                    return "'Invalid Date'"; 
+                    return "'Invalid Date'";
                 }
                 value = value.replace(/'/g, "''");
-                return `'${value}'`; 
+                return `'${value}'`;
             }
             return value; 
         }).join(", ");
 
+        let whereCondition = whereColumn ? `${whereColumn} = '${row[whereColumn]}'` : "/* condition */";
+
         switch (sqlFormat) {
             case "mysql":
-                sqlQuery += `INSERT INTO \`${tableName}\` (${MySqlcolumnNames}) VALUES (${values});\n`;
+                if (queryType === "insert") {
+                    sqlQuery += `INSERT INTO \`${tableName}\` (${MySqlcolumnNames}) VALUES (${values});\n`;
+                } else if (queryType === "update") {
+                    let updateValues = Object.keys(row).filter(col => col !== whereColumn).map(col => {
+                        let value = row[col];
+                        if (typeof value === "string") {
+                            value = value.replace(/'/g, "''");
+                            return `\`${col}\` = '${value}'`;
+                        }
+                        return `\`${col}\` = ${value}`;
+                    }).join(", ");
+                    sqlQuery += `UPDATE \`${tableName}\` SET ${updateValues} WHERE ${whereCondition};\n`;
+                }
                 break;
             case "postgres":
-                sqlQuery += `INSERT INTO "${tableName}" (${postgresColumnNames}) VALUES (${values});\n`;
+                if (queryType === "insert") {
+                    sqlQuery += `INSERT INTO "${tableName}" (${postgresColumnNames}) VALUES (${values});\n`;
+                } else if (queryType === "update") {
+                    let updateValues = Object.keys(row).filter(col => col !== whereColumn).map(col => {
+                        let value = row[col];
+                        if (typeof value === "string") {
+                            value = value.replace(/'/g, "''");
+                            return `"${col}" = '${value}'`;
+                        }
+                        return `"${col}" = ${value}`;
+                    }).join(", ");
+                    sqlQuery += `UPDATE "${tableName}" SET ${updateValues} WHERE ${whereCondition};\n`;
+                }
                 break;
             case "mssql":
-                sqlQuery += `INSERT INTO [${tableName}] (${columnNames}) VALUES (${values});\n`;
+                if (queryType === "insert") {
+                    sqlQuery += `INSERT INTO [${tableName}] (${columnNames}) VALUES (${values});\n`;
+                } else if (queryType === "update") {
+                    let updateValues = Object.keys(row).filter(col => col !== whereColumn).map(col => {
+                        let value = row[col];
+                        if (typeof value === "string") {
+                            value = value.replace(/'/g, "''");
+                            return `[${col}] = '${value}'`;
+                        }
+                        return `[${col}] = ${value}`;
+                    }).join(", ");
+                    sqlQuery += `UPDATE [${tableName}] SET ${updateValues} WHERE ${whereCondition};\n`;
+                }
                 break;
             default:
                 throw new Error("Unsupported SQL format");
@@ -120,23 +177,18 @@ function convertToSQL(jsonData, tableName, sqlFormat) {
     return sqlQuery;
 }
 
-function isDate(value) {
-    const date = new Date(value);
-    return !isNaN(date.getTime());
-}
+function toggleWhereClause() {
+    const queryType = document.getElementById("queryType").value;
+    const whereClauseLabel = document.getElementById("whereClauseLabel");
+    const whereColumnSelect = document.getElementById("whereColumn");
 
-function formatDate(value) {
-    const date = new Date(value);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
-
-function looksLikeDate(value) {
-    const dateLikePattern = /^\d{1,4}[-\/]\d{1,2}[-\/]\d{1,4}$/;
-    return dateLikePattern.test(value);
+    if (queryType === "update") {
+        whereClauseLabel.classList.remove("hidden");
+        whereColumnSelect.classList.remove("hidden");
+    } else {
+        whereClauseLabel.classList.add("hidden");
+        whereColumnSelect.classList.add("hidden");
+    }
 }
 
 function isDate(value) {
@@ -185,4 +237,29 @@ function showToast(message, type = "info") {
         toast.classList.remove("show");
         setTimeout(() => toast.remove(), 300); 
     }, 3000);
+}
+
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function scrollToBottom() {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
+function handleScroll() {
+    const scrollUpButton = document.getElementById('scrollUp');
+    const scrollDownButton = document.getElementById('scrollDown');
+
+    if (window.scrollY > 100) {
+        scrollUpButton.style.display = 'block';
+    } else {
+        scrollUpButton.style.display = 'none';
+    }
+
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
+        scrollDownButton.style.display = 'none';
+    } else {
+        scrollDownButton.style.display = 'block';
+    }
 }
