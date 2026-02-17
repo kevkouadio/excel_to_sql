@@ -110,9 +110,11 @@ function convertToSQL(jsonData, tableName, sqlFormat, queryType, whereColumn) {
             }
 
             if (typeof value === "string") {
-                if (isDate(value)) {
-                    value = formatDate(value);
-                } else if (looksLikeDate(value)) {
+                if (looksLikeDate(value)) {
+                    if (isDate(value)) {
+                        value = formatDate(value);
+                        return `'${value}'`;
+                    }
                     return "'Invalid Date'";
                 }
                 value = value.replace(/'/g, "''");
@@ -204,9 +206,29 @@ function formatDate(value) {
     return `${year}-${month}-${day}`;
 }
 
+/**
+ * Returns true only when the value matches common date-like patterns.
+ * Supports: 01/01/2020, 01-01-2020, 01-jan-2020, jan-01-2026, 01 jan 2020, etc.
+ */
 function looksLikeDate(value) {
-    const dateLikePattern = /^\d{1,4}[-\/]\d{1,2}[-\/]\d{1,4}$/;
-    return dateLikePattern.test(value);
+    if (typeof value !== "string" || !value.trim()) return false;
+    const s = value.trim();
+
+    // Numeric dates: 01/01/2020, 01-01-2020, 1/1/20, 2020-01-01
+    const numericDate = /^\d{1,4}[-\/]\d{1,2}[-\/]\d{1,4}$/;
+    if (numericDate.test(s)) return true;
+
+    // Month name (3+ letters): 01-jan-2020, 01-january-2020, jan-01-2026, january-01-2026
+    const monthName = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+    const withMonthName = new RegExp(
+        "^(" +
+        "\\d{1,2}[-\\/\\s]" + monthName + "[-\\/\\s]\\d{2,4}" +
+        "|" +
+        monthName + "[-\\/\\s]\\d{1,2}[-\\/\\s]\\d{2,4}" +
+        ")$",
+        "i"
+    );
+    return withMonthName.test(s);
 }
 
 function copyToClipboard() {
