@@ -7,6 +7,7 @@
     <title>Excel to SQL Converter</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
@@ -15,10 +16,11 @@
     <div class="form-container">
         <div class="form-group full-width">
             <label for="fileInput" class="custom-file-upload">
-                <i class="fas fa-upload"></i> Upload Excel File
+                <i class="fas fa-upload"></i> Upload Excel / CSV File
             </label>
-            <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" />
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
             <div id="selectedFileName"></div>
+            <div id="fileInfo"></div>
         </div>
 
         <div class="form-group">
@@ -28,7 +30,7 @@
 
         <div class="form-group">
             <h3>Select Query Type:</h3>
-            <select id="queryType" onchange="toggleWhereClause()">
+            <select id="queryType">
                 <option value="insert">INSERT</option>
                 <option value="update">UPDATE</option>
             </select>
@@ -43,27 +45,42 @@
             </select>
         </div>
 
-        <div class="form-group full-width">
+        <div class="form-group full-width options-row">
             <div>
                 <h3 id="whereClauseLabel" class="hidden">Select WHERE Condition Column:</h3>
                 <select id="whereColumn" class="hidden"></select>
+                <label id="batchInsertLabel" class="checkbox-label">
+                    <input type="checkbox" id="batchInsert" checked />
+                    Batch INSERT (multiple rows per statement)
+                </label>
             </div>
-            <div>
-                <button id="generateSQL">Generate SQL</button>
+            <div class="action-buttons">
+                <button id="generateSQL" type="button">Generate SQL</button>
+                <button id="clearAll" type="button" class="secondary-btn">Clear</button>
             </div>
         </div>
     </div>
 
     <h3 id="generateSQL-text-h3">Generated SQL:</h3>
+    <p id="sqlStats"></p>
     <div id="sqlOutputContainer">
-        <button id="copySQL" class="copy-btn">
-            <i class="fa fa-copy"></i> Copy
-        </button>
+        <div class="output-actions">
+            <button id="copySQL" class="copy-btn" type="button">
+                <i class="fa fa-copy"></i> Copy
+            </button>
+            <button id="downloadSQL" class="copy-btn download-btn" type="button">
+                <i class="fa fa-download"></i> Download
+            </button>
+        </div>
         <pre id="sqlOutput"></pre>
     </div>
     <div id="toast"></div>
-    <button id="scrollUp" class="scroll-button hidden"><i class="fas fa-arrow-up"></i></button>
-    <button id="scrollDown" class="scroll-button hidden"><i class="fas fa-arrow-down"></i></button>
+    <button id="scrollUp" class="scroll-button hidden" type="button" aria-label="Scroll up">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    <button id="scrollDown" class="scroll-button hidden" type="button" aria-label="Scroll down">
+        <i class="fas fa-arrow-down"></i>
+    </button>
     <!-- 
     I've built this app and am eager to connect with others who share my passion for innovation! 
     I'm actively looking for new opportunities and support to take this project to the next level.
@@ -78,7 +95,6 @@
     -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <script src="script.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
 </body>
 
 </html>
