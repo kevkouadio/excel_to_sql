@@ -57,7 +57,11 @@ function handleFileUpload(event) {
             }
 
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const parsed = parseSheetToRows(sheet);
+            // Excel text cells must stay text; CSV has no cell types so date-like strings may still convert
+            const parsed = parseSheetToRows(sheet, {
+                workbook,
+                preserveTextCells: fileExtension !== ".csv"
+            });
             excelData = parsed.rows;
             columnNames = parsed.columns;
 
@@ -116,7 +120,9 @@ function clearSQLOutput() {
  * Unlike sheet_to_json, this keeps every column in the used range even when
  * the header or first data cell is empty — later rows still get that column.
  */
-function parseSheetToRows(sheet) {
+function parseSheetToRows(sheet, options = {}) {
+    const preserveTextCells = options.preserveTextCells !== false;
+    const workbook = options.workbook || null;
     const range = getSheetRange(sheet);
     if (!range) {
         return { columns: [], rows: [] };
@@ -163,9 +169,9 @@ function parseSheetToRows(sheet) {
 
         for (let i = 0; i < columns.length; i++) {
             const cell = sheet[XLSX.utils.encode_cell({ r: R, c: range.s.c + i })];
-            const value = cellToValue(cell);
+            const value = cellToValue(cell, preserveTextCells, workbook);
             row[columns[i]] = value;
-            if (value !== null && value !== "") {
+            if (!isEmptyCellValue(value)) {
                 hasAnyValue = true;
             }
         }
@@ -177,6 +183,63 @@ function parseSheetToRows(sheet) {
     }
 
     return { columns, rows };
+}
+
+function isEmptyCellValue(value) {
+    if (value === null || value === undefined || value === "") return true;
+    if (isPreservedText(value)) return value.value.trim() === "";
+    return false;
+}
+
+function asPreservedText(value) {
+    return { __isPreservedText: true, value: String(value) };
+}
+
+function isPreservedText(value) {
+    return Boolean(value) && typeof value === "object" && value.__isPreservedText === true;
+}
+
+function isExcelTextCell(cell) {
+    if (!cell) return false;
+    // Shared strings / explicit string types from Excel
+    if (cell.t === "s" || cell.t === "str" || cell.t === "inlineStr") return true;
+    // Number format "@" means the cell is formatted as Text
+    if (typeof cell.z === "string" && cell.z.includes("@")) return true;
+    return false;
+}
+
+function resolveSharedString(cell, workbook) {
+    if (!cell || cell.t !== "s" || !workbook) return null;
+    const sst = workbook.Strings;
+    if (!sst || cell.v === undefined || cell.v === null) return null;
+    const entry = sst[cell.v];
+    if (entry == null) return null;
+    if (typeof entry === "string") return entry;
+    if (typeof entry.t === "string") return entry.t;
+    if (entry.v != null) return String(entry.v);
+    return null;
+}
+
+function resolveCellText(cell, workbook) {
+    if (!cell) return "";
+    // Prefer formatted/display text when present (preserves values like 08-00-0005)
+    if (cell.w !== undefined && cell.w !== null && String(cell.w) !== "") {
+        return String(cell.w);
+    }
+    const shared = resolveSharedString(cell, workbook);
+    if (shared !== null) return shared;
+    if (typeof XLSX.utils.format_cell === "function") {
+        try {
+            const formatted = XLSX.utils.format_cell(cell);
+            if (formatted !== undefined && formatted !== null && String(formatted) !== "") {
+                return String(formatted);
+            }
+        } catch (err) {
+            // fall through
+        }
+    }
+    if (cell.v === undefined || cell.v === null) return "";
+    return String(cell.v);
 }
 
 function getSheetRange(sheet) {
@@ -214,8 +277,17 @@ function cellToHeader(cell) {
     return String(cell.v).trim();
 }
 
-function cellToValue(cell) {
-    if (!cell || cell.v === undefined || cell.v === null) return null;
+function cellToValue(cell, preserveTextCells = true, workbook = null) {
+    if (!cell || (cell.v === undefined && cell.w === undefined && cell.t !== "inlineStr")) {
+        return null;
+    }
+
+    // Excel Text cells (and text-formatted cells) must never become dates later
+    if (preserveTextCells && isExcelTextCell(cell)) {
+        const text = resolveCellText(cell, workbook);
+        return text === "" ? null : asPreservedText(text);
+    }
+
     if (cell.t === "d" || cell.v instanceof Date) {
         const date = cell.v instanceof Date ? cell.v : new Date(cell.v);
         return isNaN(date.getTime()) ? null : date;
@@ -223,11 +295,15 @@ function cellToValue(cell) {
     if (cell.t === "b") return Boolean(cell.v);
     if (cell.t === "n") return Number(cell.v);
     if (cell.t === "e") return null;
-    const value = cell.v;
-    if (typeof value === "string") {
-        return value;
+
+    // Plain strings (e.g. CSV): keep as string; date conversion happens later only if valid
+    if (typeof cell.v === "string") {
+        return cell.v;
     }
-    return value;
+    if (cell.v === undefined || cell.v === null) {
+        return cell.w != null ? String(cell.w) : null;
+    }
+    return cell.v;
 }
 
 function isColumnEmpty(sheet, range, col) {
@@ -362,6 +438,20 @@ function formatSQLValue(value, sqlFormat) {
         return "NULL";
     }
 
+    // Excel Text cells: keep exact text. Never auto-convert numeric lookalikes
+    // like 10-02-2003 or 08-00-0005; month-name dates may still convert.
+    if (isPreservedText(value)) {
+        const text = value.value.trim();
+        if (text === "") return "NULL";
+        if (hasMonthNameDate(text)) {
+            const parts = parseDateString(text);
+            if (parts) {
+                return `'${formatDateParts(parts.year, parts.month, parts.day)}'`;
+            }
+        }
+        return `'${escapeSQLString(text)}'`;
+    }
+
     if (typeof value === "string" && value.trim() === "") {
         return "NULL";
     }
@@ -439,6 +529,9 @@ function looksLikeDate(value) {
     if (typeof value !== "string" || !value.trim()) return false;
     const s = value.trim();
 
+    // Codes like 08-00-0005 are not dates
+    if (looksLikeDateCode(s)) return false;
+
     const numericDate = /^\d{1,4}[-\/]\d{1,2}[-\/]\d{1,4}$/;
     if (numericDate.test(s)) return true;
 
@@ -455,15 +548,50 @@ function looksLikeDate(value) {
     return withMonthName.test(s);
 }
 
+/**
+ * Detects identifier/code patterns that resemble dates but are not
+ * (zero month/day segments, or years like 0005).
+ */
+function looksLikeDateCode(value) {
+    const parts = value.trim().split(/[-\/]/);
+    if (parts.length !== 3) return false;
+    if (parts.some((part) => part !== "" && /^0+$/.test(part))) return true;
+    if (parts.some((part) => part.length >= 4 && /^0\d+$/.test(part))) return true;
+    return false;
+}
+
+function hasMonthNameDate(value) {
+    const monthName =
+        "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+    const withMonthName = new RegExp(
+        "^(" +
+            "\\d{1,2}[-\\/\\s]" + monthName + "[-\\/\\s]\\d{2,4}" +
+            "|" +
+            monthName + "[-\\/\\s]\\d{1,2}[-\\/\\s]\\d{2,4}" +
+            ")$",
+        "i"
+    );
+    return withMonthName.test(String(value).trim());
+}
+
+function parseYearToken(token) {
+    // Reject code-like years such as 0005
+    if (token.length >= 4 && /^0\d+$/.test(token)) return null;
+    const year = normalizeYear(Number(token));
+    return Number.isFinite(year) ? year : null;
+}
+
 function parseDateString(value) {
     const s = value.trim();
+    if (looksLikeDateCode(s)) return null;
 
     // Day-MonthName-Year: 01-jan-2020
     let match = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]+)[-\/\s](\d{2,4})$/);
     if (match) {
         const day = Number(match[1]);
         const month = MONTH_MAP[match[2].toLowerCase()];
-        const year = normalizeYear(Number(match[3]));
+        const year = parseYearToken(match[3]);
+        if (year == null) return null;
         return isValidDateParts(year, month, day) ? { year, month, day } : null;
     }
 
@@ -472,16 +600,18 @@ function parseDateString(value) {
     if (match) {
         const month = MONTH_MAP[match[1].toLowerCase()];
         const day = Number(match[2]);
-        const year = normalizeYear(Number(match[3]));
+        const year = parseYearToken(match[3]);
+        if (year == null) return null;
         return isValidDateParts(year, month, day) ? { year, month, day } : null;
     }
 
     // Numeric: YYYY-MM-DD or YYYY/MM/DD
     match = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
     if (match) {
-        const year = Number(match[1]);
+        const year = parseYearToken(match[1]);
         const month = Number(match[2]);
         const day = Number(match[3]);
+        if (year == null) return null;
         return isValidDateParts(year, month, day) ? { year, month, day } : null;
     }
 
@@ -490,7 +620,10 @@ function parseDateString(value) {
     if (match) {
         const a = Number(match[1]);
         const b = Number(match[2]);
-        const year = normalizeYear(Number(match[3]));
+        const year = parseYearToken(match[3]);
+        if (year == null) return null;
+        // Reject zero month/day segments (e.g. 08-00-0005)
+        if (a === 0 || b === 0) return null;
 
         // Ambiguous US/EU dates: if first part > 12 treat as DD-MM-YYYY,
         // else if second > 12 treat as MM-DD-YYYY, else default to DD-MM-YYYY.
